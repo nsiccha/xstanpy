@@ -12,16 +12,15 @@ Everything including modified submodules can be checked out via
 This should so far include
 
 * the python code in `xstanpy`,
-* a modified CmdStan version
-in `cmdstan`
+* a modified CmdStan version in `cmdstan`
 * a modified stan version in `cmdstan/stan` and
 * a so far unmodified math version in `cmdstan/stan/lib/stan_math`
 
 ## Usage
 
-Commented examples can be found in the `examples` directory and currently include
+Commented examples can be found in the [`examples`](examples) directory and currently include
 
-* `linear_ode.py`: A simple linear ordinary differential equation which gets fitted
+* [`linear_ode.py`](examples/linear_ode.py): A simple linear ordinary differential equation which gets fitted
 either using a custom (pooled, incremental & adaptive) warm-up procedure or Stan's
 default warm-up with a varying number of total warm-up iterations.
 
