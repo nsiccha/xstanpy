@@ -30,3 +30,7 @@ Further instructions on how to run the examples can be found in `examples/README
 ## Caching
 
 Soon, results (model+data+command+config) will be automatically cached.
+
+### Disclaimer
+
+The only thing I do worse than documenting is naming things.
