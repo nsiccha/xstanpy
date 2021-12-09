@@ -130,4 +130,6 @@ class Figure(Object):
         return fig
 
     def save(self, path):
+        path = pathlib.Path(path)
+        path.parents[0].mkdir(parents=True, exist_ok=True)
         self.fig.savefig(path)
