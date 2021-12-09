@@ -3,6 +3,20 @@
 Use at your own risk, currently everything is very brittle and will probably be changed
 in the near future.
 
+## Download
+
+Everything including modified submodules can be checked out via
+
+`git clone --recurse-submodules -j8 https://github.com/nsiccha/xstanpy`
+
+This should so far include
+
+* the python code in `xstanpy`,
+* a modified CmdStan version
+in `cmdstan`
+* a modified stan version in `cmdstan/stan` and
+* a so far unmodified math version in `cmdstan/stan/lib/stan_math`
+
 ## Usage
 
 Commented examples can be found in the `examples` directory and currently include
@@ -16,4 +30,4 @@ Further instructions on how to run the examples can be found in `examples/README
 
 ## Caching
 
-Soon, results (model+data+command+config) will be automatically cached. 
+Soon, results (model+data+command+config) will be automatically cached.
