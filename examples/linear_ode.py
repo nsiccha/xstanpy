@@ -139,6 +139,7 @@ for config_name, no_dimensions in configs.items():
     # * `HMC.raw_commands`, if one wants more fine grained control, e.g. to specify a timeout, or
     # * `HMC.commands`, which if accessed waits for all processes to finish and raises an error
     # if any of the subprocesses encountered an error.
+    # 
     # The `HMC` class provides several other convenience functions, such as
     # * `HMC.samples` to access an object's SAMPLES (excluding WARM-UP draws),
     # * `HMC.draws` to access an object's draws (INCLUDING warm-up draws)

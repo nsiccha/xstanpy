@@ -147,6 +147,7 @@ Among other thing it handles spawning several subproccess, accessible either via
 * [`HMC.raw_commands`](../xstanpy/base.py#L970), if one wants more fine grained control, e.g. to specify a timeout, or
 * [`HMC.commands`](../xstanpy/base.py#L973), which if accessed waits for all processes to finish and raises an error
 if any of the subprocesses encountered an error.
+
 The [`HMC`](../xstanpy/base.py#L938) class provides several other convenience functions, such as
 * [`HMC.samples`](../xstanpy/base.py#L981) to access an object's SAMPLES (excluding WARM-UP draws),
 * [`HMC.draws`](../xstanpy/base.py#L978) to access an object's draws (INCLUDING warm-up draws)
