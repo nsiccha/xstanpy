@@ -166,12 +166,14 @@ convenience properties from the [`Pool`](../xstanpy/base.py#L805) class:
 * [`Pool.array`](../xstanpy/base.py#L855): returns the `numpy` concatenation of the object's subelements
 * [`Pool.tensor`](../xstanpy/base.py#L852): returns the result of [`Pool.array`](../xstanpy/base.py#L855) reshaped such that its first axis
 has the same length as the original [`Pool`](../xstanpy/base.py#L805) object.
+
 In practice, this enables us to e.g. access all the constrained parameter values
 of the [`HMC.samples`](../xstanpy/base.py#L981)
 * via `prior_samples.constrained.array` as an `no_chains * no_draws x no_constrained_parameters`
 `numpy` array or
 * via `prior_samples.constrained.tensor` as an `no_chains x no_draws x no_constrained_parameters`
 `numpy` array.
+
 In addition, the same is possible for any variable defined in the
 `parameters`, `transformed parameters` or `generated quantities` block.
 For this model ([`stan/linear_ode.stan`](stan/linear_ode.stan)) we should be able to access e.g.

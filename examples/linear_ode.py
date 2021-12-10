@@ -139,7 +139,7 @@ for config_name, no_dimensions in configs.items():
     # * `HMC.raw_commands`, if one wants more fine grained control, e.g. to specify a timeout, or
     # * `HMC.commands`, which if accessed waits for all processes to finish and raises an error
     # if any of the subprocesses encountered an error.
-    # 
+    #
     # The `HMC` class provides several other convenience functions, such as
     # * `HMC.samples` to access an object's SAMPLES (excluding WARM-UP draws),
     # * `HMC.draws` to access an object's draws (INCLUDING warm-up draws)
@@ -155,12 +155,14 @@ for config_name, no_dimensions in configs.items():
     # * `Pool.array`: returns the `numpy` concatenation of the object's subelements
     # * `Pool.tensor`: returns the result of `Pool.array` reshaped such that its first axis
     # has the same length as the original `Pool` object.
+    #
     # In practice, this enables us to e.g. access all the constrained parameter values
     # of the `HMC.samples`
     # * via `prior_samples.constrained.array` as an `no_chains * no_draws x no_constrained_parameters`
     # `numpy` array or
     # * via `prior_samples.constrained.tensor` as an `no_chains x no_draws x no_constrained_parameters`
     # `numpy` array.
+    # 
     # In addition, the same is possible for any variable defined in the
     # `parameters`, `transformed parameters` or `generated quantities` block.
     # For this model (`stan/linear_ode.stan`) we should be able to access e.g.
