@@ -2,8 +2,7 @@
 
 * `linear_ode`: A linear ODE model with a fixed ODE matrix and two parameters
 (time scale and measurement noise).
-See [linear_ode.md](linear_ode.md) for details or [linear_ode.py](linear_ode.py)
-for the semi-commented code.
+See [linear_ode.md](linear_ode.md) for details.
 
 This folder contains one `.py` file per example. Corresponding `.stan` files
 are located in the `examples/stan` directory.

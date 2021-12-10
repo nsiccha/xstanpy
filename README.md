@@ -20,7 +20,7 @@ This should so far include
 
 Commented examples can be found in the [`examples`](examples) directory and currently include
 
-* [`linear_ode.py`](examples/linear_ode.py): A simple linear ordinary differential equation which gets fitted
+* [`linear_ode.{py,md}`](examples/linear_ode.md): A simple linear ordinary differential equation which gets fitted
 either using a custom (pooled, incremental & adaptive) warm-up procedure or Stan's
 default warm-up with a varying number of total warm-up iterations.
 

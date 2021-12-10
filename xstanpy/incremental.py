@@ -82,7 +82,7 @@ class Incremental(ChainedHMC):
     arg_names = ('posterior', )
     init_buffer = 25
     metric_window = 100
-    term_buffer = 50
+    term_buffer = 25
     sampling_no_draws = 100
 
     hmc = HMC
