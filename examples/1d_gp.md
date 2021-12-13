@@ -101,7 +101,7 @@ intermediate posterior.
 via [`DrawsPool.draws_for`](../xstanpy/base.py#L979) and [`PosteriorDraws.draws_for`](../xstanpy/base.py#L450) to [`Model.draws_for`](../xstanpy/base.py#L193).
 * There, if the posteriors have the same dimensionality, nothing special happens.
 If however the dimensionality of the target posterior is larger than the dimensionality
-of the source posterior, the uncsontrained parameter values get padded with draws
+of the source posterior, the unconstrained parameter values get padded with draws
 from a standard normal. **This is very non-portable and has to be changed. For
 the current model this works because only the dimensionality of the `unit_weights`
 change, which in fact have a standard normal prior.**
@@ -109,11 +109,11 @@ change, which in fact have a standard normal prior.**
 log-likelihood difference.
 * The only extra work happens in [`HMC.adaptation_for`](../xstanpy/base.py#L1100) via [`HMC.pooled_metric_for`](../xstanpy/base.py#L1075),
 where the metric from the lower dimensional posterior gets extended by an identity
-matrix in the new part of the diagonal.
+matrix in the new part of the diagonal. **This is of course also not portable**.
 
 [^2]: Or maybe not?
 
-This is all equivalent to what happens for the [`linear_ode.md`](linear_ode.md) example, with the
+What follows now is equivalent to what happens for the [`linear_ode.md`](linear_ode.md) example, with the
 only difference that different configurations have a different number of observations
 instead of a different number of (ODE) states.
 ```python

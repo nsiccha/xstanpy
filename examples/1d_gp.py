@@ -93,7 +93,7 @@ model.compilation_process.debug()
 # via `DrawsPool.draws_for` and `PosteriorDraws.draws_for` to `Model.draws_for`.
 # * There, if the posteriors have the same dimensionality, nothing special happens.
 # If however the dimensionality of the target posterior is larger than the dimensionality
-# of the source posterior, the uncsontrained parameter values get padded with draws
+# of the source posterior, the unconstrained parameter values get padded with draws
 # from a standard normal. **This is very non-portable and has to be changed. For
 # the current model this works because only the dimensionality of the `unit_weights`
 # change, which in fact have a standard normal prior.**
@@ -107,7 +107,7 @@ model.compilation_process.debug()
 
 
 
-# This is all equivalent to what happens for the `linear_ode.md` example, with the
+# What follows now is equivalent to what happens for the `linear_ode.md` example, with the
 # only difference that different configurations have a different number of observations
 # instead of a different number of (ODE) states.
 configs = dict(
