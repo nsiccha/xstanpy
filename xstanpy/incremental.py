@@ -3,7 +3,7 @@ from xstanpy import psis
 
 class ChainedHMC(Object):
     arg_names = ('posterior', 'configurations')
-    info_names = ('hmc_wall_time', 'ess')
+    information_names = HMC.information_names
     initial_adaptation_configuration = Configuration(dict(
         init_buffer='init_buffer',
         metric_window=0,
@@ -67,7 +67,12 @@ class ChainedHMC(Object):
     def ess(self): return self.sampling.ess
 
     @cproperty
-    def sampling_no_divergences(self): return self.sampling.sampling_no_divergences
+    def sampling_no_divergences(self):
+        return self.sampling.sampling_no_divergences
+
+    @cproperty
+    def avg_sampling_no_leapfrog_steps(self):
+        return self.sampling.avg_sampling_no_leapfrog_steps
 
     @cproperty
     def potential_scale_reduction_factor(self):
@@ -114,8 +119,8 @@ class Incremental(ChainedHMC):
     @cproperty
     def initial_data(self): return dict(self.final_data, **self.initial_slice)
 
-    def data_reconfiguration(self, warmup_sequence):
-        last = warmup_sequence[-1]
+    def data_reconfiguration(self, sequence):
+        last = sequence[-1]
         last_data = last.posterior.data
         for slice_variable in self.slice_variables:
             last_idx = last_data[slice_variable]
@@ -125,10 +130,10 @@ class Incremental(ChainedHMC):
             slice_idx = min(2 * last_idx, max_idx)
             return self.slice_update({slice_variable: slice_idx})
 
-    def reconfiguration(self, warmup_sequence):
-        data_reconfiguration = self.data_reconfiguration(warmup_sequence)
+    def reconfiguration(self, sequence):
+        data_reconfiguration = self.data_reconfiguration(sequence)
         if data_reconfiguration is None: return None
-        last = warmup_sequence[-1]
+        last = sequence[-1]
         new_posterior = last.posterior.updated(data_reconfiguration)
         return dict(
             posterior=new_posterior,
@@ -161,7 +166,10 @@ class Incremental(ChainedHMC):
         return Pool(rv)
 
 class Adaptive(Incremental):
-    info_names = HMC.info_names + ('relative_efficiency', 'pareto_shape_estimate')
+    information_names = (
+        Incremental.information_names
+        + ('relative_efficiency', 'pareto_shape_estimate')
+    )
     relative_efficiency_goal = .5
     @cproperty
     def refinement_variable(self): return self.posterior.model.refinement_variable
@@ -178,14 +186,14 @@ class Adaptive(Incremental):
     def initial_data(self):
         return dict(super().initial_data, **self.initial_refinement)
 
-    def data_reconfiguration(self, warmup_sequence):
-        last = warmup_sequence[-1]
+    def data_reconfiguration(self, sequence):
+        last = sequence[-1]
         refinement_reconfiguration = self.refinement_update(last.posterior.data)
         refined_posterior = last.posterior.updated(refinement_reconfiguration)
         psis = last.draws.psis(refined_posterior)
         if psis.relative_efficiency < self.relative_efficiency_goal:
             return refinement_reconfiguration
-        return super().data_reconfiguration(warmup_sequence)
+        return super().data_reconfiguration(sequence)
 
     @cproperty
     def sampling_psis(self): return self.samples.psis(self.posterior)

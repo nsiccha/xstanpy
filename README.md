@@ -20,11 +20,11 @@ This should so far include
 
 Commented examples can be found in the [`examples`](examples) directory and currently include
 
-* [`linear_ode.{py,md}`](examples/linear_ode.md): A simple linear ordinary differential equation which gets fitted
-either using a custom (pooled, incremental & adaptive) warm-up procedure or Stan's
-default warm-up with a varying number of total warm-up iterations.
+* [`linear_ode.{py,md}`](examples/linear_ode.md): A simple linear ordinary differential equation.
+* [`1d_gp.{py,md}`](examples/1d_gp.md): A simple 1D Gaussian process.
 
-Further instructions on how to run the examples can be found in `examples/README.md`.
+Further instructions on how to run the examples can be found in
+[`examples/README.md`](examples/README.md).
 
 
 ## Caching

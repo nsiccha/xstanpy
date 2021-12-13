@@ -162,7 +162,7 @@ for config_name, no_dimensions in configs.items():
     # `numpy` array or
     # * via `prior_samples.constrained.tensor` as an `no_chains x no_draws x no_constrained_parameters`
     # `numpy` array.
-    # 
+    #
     # In addition, the same is possible for any variable defined in the
     # `parameters`, `transformed parameters` or `generated quantities` block.
     # For this model (`stan/linear_ode.stan`) we should be able to access e.g.

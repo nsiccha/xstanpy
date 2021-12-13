@@ -60,10 +60,10 @@ def Configuration(config_map):
 
 class Object:
     arg_names = tuple()
-    config_names = tuple()
-    info_names = tuple()
-    configuration = Configuration('config_names')
-    information = Configuration('info_names')
+    configuration_names = tuple()
+    information_names = tuple()
+    configuration = Configuration('configuration_names')
+    information = Configuration('information_names')
 
     def post_init(self): pass
 
@@ -189,6 +189,28 @@ class Model(Object):
 
     @cproperty
     def parameter_names(self): return tuple(self.src_info['parameters'])
+
+    def draws_for(self, draws, target):
+        if isinstance(target, dict):
+            target = draws.posterior.updated(target)
+        if draws.posterior is target: return draws
+        assert(isinstance(draws, PosteriorDraws))
+        assert(draws.posterior.model is target.model)
+        diff_no_cols = (
+            target.no_unconstrained_parameters
+            - draws.posterior.no_unconstrained_parameters
+        )
+        unconstrained = draws.unconstrained
+        if diff_no_cols > 0:
+            dshape = (draws.no_draws, diff_no_cols)
+            unconstrained = np.hstack([unconstrained, np.random.normal(size=dshape)])
+        elif diff_no_cols < 0:
+            raise NotImplementedError()
+        return draws.__class__(
+            posterior=target,
+            unconstrained=unconstrained
+        )
+
 
 
 class Data(Object):
@@ -346,6 +368,11 @@ class PosteriorDraws(Object):
     def constrained_lp(self):
         return self.compute_command(constrained_log_probability=True)
 
+    @cproperty
+    def constrained_log_prior(self):
+        assert('likelihood' in self.posterior.model.data_names)
+        return self.draws_for(dict(likelihood=0)).constrained_lp
+
     @cached_command
     def constrained_lpg(self):
         return self.compute_command(constrained_log_probability_gradient=True)
@@ -382,6 +409,15 @@ class PosteriorDraws(Object):
         'unconstrained_lp', 'unconstrained_lpg'
     ]
 
+    @cproperty
+    def no_draws(self):
+        for key in self.sliceable_attributes:
+            if key in self.__dict__: return len(getattr(self, key))
+        raise ValueError()
+
+    def __len__(self): return self.no_draws
+
+
     def __getitem__(self, key):
         return self.__class__(
             self.posterior,
@@ -410,6 +446,9 @@ class PosteriorDraws(Object):
             return rv
         except AttributeError as ex:
             raise ex
+
+    def draws_for(self, target):
+        return self.posterior.model.draws_for(self, target)
 
 class ApproximateDraws(PosteriorDraws):
     arg_names = ('posterior', 'proposal')
@@ -716,6 +755,9 @@ class SingleHMC(SingleCommand):
     def last_window_draws(self): return self.windowed_draws[-1]
 
     @cproperty
+    def last_window_hmc_df(self): return self.hmc_df.iloc[-self.window_sizes[-1]:]
+
+    @cproperty
     def metric_window_draws(self):
         return self.windowed_draws[
             -1
@@ -729,7 +771,7 @@ class SingleHMC(SingleCommand):
     def dual_averaged_step_size(self):
         if self.sampling_no_draws: return self.hmc_df.stepsize__.iloc[-1]
         # https://github.com/stan-dev/stan/blob/fc3fe7970d264818e3e948109d9c24f7abea5655/src/stan/mcmc/stepsize_adaptation.hpp#L60-L68
-        df = self.hmc_df.iloc[-self.window_sizes[-1]:]
+        df = self.last_window_hmc_df
         no_draws = len(df.index)
         x = np.log(df.stepsize__.to_numpy())
         x_eta = (1+np.arange(no_draws)) ** -self.adaptation_relaxation_exponent
@@ -881,6 +923,7 @@ class CommandPool(Pool):
         assert(self.status)
         return self.__end - self.__start
 
+
 class ImportanceSampling(Object):
     arg_names = ('log_weights', )
     @cproperty
@@ -893,6 +936,18 @@ class ImportanceSampling(Object):
     @cproperty
     def relative_efficiency(self):
         return  self.effective_sample_size / self.no_samples
+
+    @cproperty
+    def normalized_weights(self):
+        return np.exp(self.log_weights - log_sum_exp(self.log_weights))
+
+    def resample_idxs(self, size, replace=True):
+        return np.random.choice(
+            len(self.normalized_weights),
+            size=size,
+            replace=replace,
+            p=self.normalized_weights
+        )
 
 
 
@@ -921,29 +976,36 @@ class DrawsPool(Pool):
     def distance_from_reference(self): return self.distance_from(self.posterior)
     @cproperty
     def metric(self): return np.atleast_2d(np.cov(self.unconstrained.array.T))
-    def psis(self, target_posterior):
-        if isinstance(target_posterior, dict):
-            target_posterior = self.posterior.updated(target_posterior)
-        target_draws = self.__class__([
-            PosteriorDraws(
-                posterior=target_posterior,
-                unconstrained=unconstrained
-            )
-            for unconstrained in self.unconstrained
+    def draws_for(self, target):
+        return self.__class__([
+            element.draws_for(target) for element in self.elements
         ])
-        return ParetoSmoothedImportanceSampling(
-            target_draws.constrained_lp.array - self.constrained_lp.array
+    def psis(self, target):
+        if isinstance(target, dict):
+            target = self.posterior.updated(target)
+        if isinstance(target, Posterior):
+            target = self.draws_for(target)
+        lw = target.constrained_lp.array - self.constrained_lp.array
+        diff_no_cols = (
+            target.posterior.no_unconstrained_parameters
+            - self.posterior.no_unconstrained_parameters
         )
+        if diff_no_cols > 0:
+            lw -= target.constrained_log_prior.array - self.constrained_log_prior.array
+        elif diff_no_cols < 0:
+            raise NotImplementedError()
+        return ParetoSmoothedImportanceSampling(lw)
 
 class HMC(Object):
     arg_names = ('posterior', )
-    config_names = (
+    configuration_names = (
         'init_buffer', 'metric_window', 'term_buffer', 'warmup_no_draws',
         'sampling_no_draws', 'thin',
-        'step_size', 'metric', 'init'
+        'step_size', 'metric', 'metric_type', 'init'
     )
-    info_names = (
+    information_names = (
         'hmc_wall_time', 'ess', 'sampling_no_divergences', 'potential_scale_reduction_factor',
+        'avg_sampling_no_leapfrog_steps'
     )
     command = SingleHMC
     first_idx = 1
@@ -971,6 +1033,8 @@ class HMC(Object):
 
     @cproperty
     def commands(self):
+        if not self.raw_commands.status:
+            self.raw_commands.process.debug()
         assert(self.raw_commands.status)
         return self.raw_commands
 
@@ -991,7 +1055,13 @@ class HMC(Object):
 
     @cproperty
     def pooled_step_size(self):
-        return max(self.commands.dual_averaged_step_size)
+        dass = self.commands.dual_averaged_step_size.tensor
+        min_, max_ = np.min(dass), np.max(dass)
+        df = self.commands.last_window_hmc_df.df
+        df = df[df.divergent__==1]
+        proposal = .5 * df.stepsize__.min() if len(df.index) else np.mean(dass)
+        print(len(df.index), [min_,max_,proposal])
+        return np.quantile([min_,max_,proposal], .5)
 
     @cproperty
     def metric_window_draws(self):
@@ -1002,27 +1072,36 @@ class HMC(Object):
         if not self.commands[0].metric_window: return self.commands[0].metric
         return self.metric_window_draws.metric
 
-    def adaptation_for(self, new_posterior):
-        if new_posterior is self.posterior:
-            pooled_init = self.draws.constrained[:,-1].tensor
-        else:
-            new_draws = Pool([
-                draws.shallow_copy(posterior=new_posterior) for draws in self.draws
+    def pooled_metric_for(self, target_posterior):
+        rv = self.pooled_metric
+        diff_no_cols = (
+            target_posterior.no_unconstrained_parameters
+            - self.posterior.no_unconstrained_parameters
+        )
+        if diff_no_cols > 0:
+            z = np.zeros((len(rv), diff_no_cols))
+            rv = np.block([
+                [rv, z],
+                [z.T, np.eye(diff_no_cols)]
             ])
-            lw = self.draws.constrained_lp.array - new_draws.constrained_lp.array
-            psislw, k = psis.psislw(lw)
-            weights = np.exp(psislw - log_sum_exp(psislw))
-            idxs = np.random.choice(
-                len(lw),
-                size=self.no_chains,
-                replace=True,
-                p=weights
-            )
-            pooled_init = self.draws.constrained.array[idxs]
+        elif diff_no_cols < 0:
+            raise NotImplementedError()
+        return rv
+
+    def pooled_init_for(self, target_posterior):
+        if target_posterior is self.posterior:
+            return self.draws.constrained[:,-1].tensor
+        target_draws = self.draws.draws_for(target_posterior)
+        return target_draws.constrained.array[
+            self.draws.psis(target_draws).resample_idxs(self.no_chains)
+        ]
+
+
+    def adaptation_for(self, target_posterior):
         return dict(
             step_size=self.pooled_step_size,
-            metric=self.pooled_metric,
-            init=pooled_init
+            metric=self.pooled_metric_for(target_posterior),
+            init=self.pooled_init_for(target_posterior)
         )
 
     @cproperty
@@ -1044,6 +1123,9 @@ class HMC(Object):
     def sampling_no_divergences(self): return self.sampling_hmc_df.divergent__.sum()
 
     @cproperty
+    def avg_sampling_no_leapfrog_steps(self): return self.sampling_hmc_df.n_leapfrog__.mean()
+
+    @cproperty
     def potential_scale_reduction_factor(self): return self.samples.potential_scale_reduction_factor
 
     def distance_from(self, posterior): return self.samples.distance_from(posterior)
@@ -1060,6 +1142,7 @@ class HMC(Object):
                 term_buffer=50,
                 warmup_no_draws=1000,
                 sampling_no_draws=1000,
+                metric_type='diag_e'
             ),
             **kwargs
         ))

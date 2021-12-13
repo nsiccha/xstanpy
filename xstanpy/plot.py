@@ -2,7 +2,7 @@ from xstanpy.base import *
 import matplotlib.pyplot as plt
 
 class Plot(Object):
-    config_names = ('color', 'label', 'marker')
+    configuration_names = ('color', 'alpha', 'label', 'marker', 'linestyle')
     def as_ax(self, **kwargs): return Ax([self], configuration=kwargs)
 
 class LinePlot(Plot):
@@ -13,6 +13,23 @@ class LinePlot(Plot):
             ax.plot(self.x, self.y, **self.configuration)
         else:
             ax.plot(self.x, **self.configuration)
+
+class ScatterPlot(LinePlot):
+    arg_names = ('x', 'y')
+    marker='.'
+    linestyle=''
+
+class FillPlot(Plot):
+    arg_names = ('x', 'y')
+
+    def update(self, ax):
+        if hasattr(self, 'y'):
+            x, y = self.x, self.y
+        else:
+            x, y = np.arange(len(self.x[0])), self.x
+        if len(y) != 2:
+            y = np.quantile(y, [.159, 1-.159], axis=0)
+        ax.fill_between(x, *y, **self.configuration)
 
 class HistPlot(Plot):
     arg_names = ('x', )
@@ -25,9 +42,15 @@ class VerticalLine(Plot):
     def update(self, ax):
         ax.axvline(self.x, **self.configuration)
 
+class HorizontalLine(Plot):
+    arg_names = ('y', )
+
+    def update(self, ax):
+        ax.axhline(self.y, **self.configuration)
+
 class Ax(Object):
     arg_names = ('plots', )
-    config_names = (
+    configuration_names = (
         'title',
         'xlabel', 'ylabel',
         'xlim', 'ylim',
@@ -55,7 +78,7 @@ class Ax(Object):
 
 class Figure(Object):
     arg_names = ('axes', )
-    config_names = ('figsize', 'sharex', 'sharey')
+    configuration_names = ('figsize', 'sharex', 'sharey')
     suptitle = ''
     suptitle_configuration = Configuration(dict(
         t='suptitle',
@@ -68,7 +91,9 @@ class Figure(Object):
     ))
     show_legend = False
     layout_configuration = Configuration(('pad', 'rect', ))
-    ax_configuration = dict()
+    pad = 3
+    ax_configuration = Configuration(dict())
+
 
     @cproperty
     def axes2d(self): return np.atleast_2d(self.axes)
@@ -83,12 +108,12 @@ class Figure(Object):
 
     @cproperty
     def legend_width(self):
-        return .5 if self.show_legend == 'row' else 0
+        return 2 if self.show_legend == 'row' else 0
 
     @cproperty
     def figsize(self):
         return (
-            (self.legend_width + self.no_cols) * self.col_width,
+            self.legend_width + self.no_cols * self.col_width,
             self.no_rows * self.row_height
         )
 
@@ -108,7 +133,7 @@ class Figure(Object):
         return (
             0,
             0,
-            1-self.legend_width/(self.legend_width+self.no_cols),
+            1-self.legend_width/self.figsize[0],
             1
         )
 
