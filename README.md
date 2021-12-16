@@ -20,8 +20,8 @@ This should so far include
 
 Commented examples can be found in the [`examples`](examples) directory and currently include
 
-* [`linear_ode.{py,md}`](examples/linear_ode.md): A simple linear ordinary differential equation.
-* [`1d_gp.{py,md}`](examples/1d_gp.md): A simple 1D Gaussian process.
+* [`linear_ode.{py,stan,md}`](examples/linear_ode.md): A simple linear ordinary differential equation.
+* [`1d_gp.{py,stan,md}`](examples/1d_gp.md): A simple 1D Gaussian process.
 
 Further instructions on how to run the examples can be found in
 [`examples/README.md`](examples/README.md).

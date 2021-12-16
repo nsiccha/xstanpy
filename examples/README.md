@@ -1,11 +1,10 @@
 # Examples
 
-* `linear_ode`: A linear ODE model with a fixed ODE matrix and two parameters
-(time scale and measurement noise).
-See [linear_ode.md](linear_ode.md) for details.
+* [`linear_ode.{py,stan,md}`](examples/linear_ode.md): A simple linear ordinary differential equation.
+* [`1d_gp.{py,stan,md}`](examples/1d_gp.md): A simple 1D Gaussian process.
 
-This folder contains one `.py` file per example. Corresponding `.stan` files
-are located in the `examples/stan` directory.
+This folder contains one `.py` file in the `examples/py` folder per example.
+Corresponding `.stan` files are located in the `examples/stan` directory.
 
 In general, figure outputs will be written to the `figs` directory and
 `cmdstan` output will be written to the `out` directory.
@@ -22,10 +21,7 @@ Examples should be able to be run
 
 ## Expected output
 
-When run via e.g. `python linear_ode.py`
+When run via e.g. `python py/linear_ode.py`
 
 * fit diagnostics get printed to `stdout`,
-* figures will be generated for each posterior at `examples/figs/{model.name}/{config.name}/{posterior.hash}.png`,
-* a short report will be generated for each configuration under
-`examples/figs/{model.name}/{config.name}.md`
-* and for each model under `examples/figs/{model.name}.md`.
+* figures will be generated for each posterior at `examples/figs/{model.name}/{config.name}/{posterior.hash}.png`.
