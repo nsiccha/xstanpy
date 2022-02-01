@@ -110,11 +110,16 @@ class Figure(Object):
     def legend_width(self):
         return 2 if self.show_legend == 'row' else 0
 
+    line_height = .2
+    @cproperty
+    def suptitle_height(self):
+        return len(self.suptitle.splitlines()) * self.line_height
+
     @cproperty
     def figsize(self):
         return (
             self.legend_width + self.no_cols * self.col_width,
-            self.no_rows * self.row_height
+            self.no_rows * self.row_height + self.suptitle_height
         )
 
     @cproperty

@@ -4,6 +4,7 @@ from xstanpy import psis
 class ChainedHMC(Object):
     arg_names = ('posterior', 'configurations')
     information_names = HMC.information_names
+    info_names = HMC.info_names
     initial_adaptation_configuration = Configuration(dict(
         init_buffer='init_buffer',
         metric_window=0,
@@ -51,8 +52,13 @@ class ChainedHMC(Object):
     @cproperty
     def sampling(self): return self.sequence[-1]
 
-    @cproperty
-    def samples(self): return self.sampling.samples
+    def __getattr__(self, key):
+        if key.startswith('_'): raise AttributeError(self, key)
+        if hasattr(self.__class__, key): raise AttributeError(self, key)
+        return getattr(self.sampling, key)
+
+    # @cproperty
+    # def samples(self): return self.sampling.samples
 
     @cproperty
     def estimated_cost(self): return sum(self.sequence.estimated_cost)
@@ -62,21 +68,21 @@ class ChainedHMC(Object):
 
     @cproperty
     def hmc_wall_time(self): return np.sum(self.sequence.hmc_wall_time)
-
-    @cproperty
-    def ess(self): return self.sampling.ess
-
-    @cproperty
-    def sampling_no_divergences(self):
-        return self.sampling.sampling_no_divergences
-
-    @cproperty
-    def avg_sampling_no_leapfrog_steps(self):
-        return self.sampling.avg_sampling_no_leapfrog_steps
-
-    @cproperty
-    def potential_scale_reduction_factor(self):
-        return self.sampling.potential_scale_reduction_factor
+    #
+    # @cproperty
+    # def ess(self): return self.sampling.ess
+    #
+    # @cproperty
+    # def sampling_no_divergences(self):
+    #     return self.sampling.sampling_no_divergences
+    #
+    # @cproperty
+    # def avg_sampling_no_leapfrog_steps(self):
+    #     return self.sampling.avg_sampling_no_leapfrog_steps
+    #
+    # @cproperty
+    # def potential_scale_reduction_factor(self):
+    #     return self.sampling.potential_scale_reduction_factor
 
     def distance_from(self, posterior): return self.sampling.distance_from(posterior)
 
@@ -166,10 +172,6 @@ class Incremental(ChainedHMC):
         return Pool(rv)
 
 class Adaptive(Incremental):
-    information_names = (
-        Incremental.information_names
-        + ('relative_efficiency', 'pareto_shape_estimate')
-    )
     relative_efficiency_goal = .5
     @cproperty
     def refinement_variable(self): return self.posterior.model.refinement_variable

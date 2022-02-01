@@ -1,20 +1,5 @@
 """
-# Linear ODE
 
-A sample visualization for a medium sized configuration (a linear ODE with 8 states)
-can be seen here:
-![](figs/linear_ode/medium/262322ed0482f5fa5d8f94f1e56b65c2.png)
-
-The table at the top of the figure compares among other things HMC wall times
-(my current implementation has additional overhead due to the extra I/O needed e.g. for PSIS).
-The plots show measurements, true ODE states and mean posterior ODE-states.
-
-`adaptive` uses PSIS to adaptively refine an approximate solution to the ODE
-while `stan_xxxx` just uses the "exact" solution
-(obtained via one matrix exponential per time step).
-`xxxx` corresponds to the total number of warm-up iterations.
-The model itself only has two parameters (the ODE matrix is fixed), a time scale
-parameter and a measurement noise parameter.
 """
 
 
@@ -116,7 +101,7 @@ for config_name, no_dimensions in configs.items():
         no_dimensions=no_dimensions,
         # scale our observation times by the number of ODE states, as larger
         # systems tend to approach equilibrium quicker
-        x_observed=x_observed/no_dimensions,
+        x_observed=x_observed,
         # One randomly generated matrix per configuration
         ode_matrix=random_flow_matrix(no_dimensions),
         # `y_observed` is irrelevant for prior sampling
@@ -187,10 +172,15 @@ for config_name, no_dimensions in configs.items():
         fits = {
             'adaptive': adaptive,
         }
-        for warmup_no_draws in [200, 400, 800, 1000]:
+        for warmup_no_draws in [200]:
             key = f'{warmup_no_draws:04d}'
             fits[f'stan_{key}'] = HMC.stan_regular(
                 posterior,
+                warmup_no_draws=warmup_no_draws,
+                sampling_no_draws=100
+            )
+            fits[f'psis_{key}'] = HMC.stan_regular(
+                adaptive.sampling.posterior,
                 warmup_no_draws=warmup_no_draws,
                 sampling_no_draws=100
             )
@@ -207,7 +197,8 @@ for config_name, no_dimensions in configs.items():
                 LinePlot(y_true[:, i], color='black', label='true values'),
                 LinePlot(y_observed[:, i], marker='x', color='black', label='observations'),
             ] + [
-                LinePlot(np.mean(fit.samples.y_computed.array[:,:,i], axis=0), label=key)
+                FillPlot(fit.samples.y_computed.array[:,:,i], alpha=.5, label=key)
+                # LinePlot(np.mean(fit.samples.y_computed.array[:,:,i], axis=0), label=key)
                 for key, fit in fits.items()
             ], yscale='log', show_legend=False)
             for i in range(no_dimensions)
@@ -221,31 +212,3 @@ for config_name, no_dimensions in configs.items():
         ).save(
             f'figs/{model.name}/{config.name}/{posterior.hash}.png'
         )
-    full_df = pd.concat([full_df, pd.concat({config.name: config_df}, names=['config'])])
-    report_path = pathlib.Path(f'figs/{model.name}/{config.name}.md')
-    with open(report_path, 'w') as fd:
-        fd.write(f"""
-# {model.name} / {config.name} ({config.data})
-
-## Aggregated data (mean)
-
-{config_df.groupby(level=1).mean().to_markdown()}
-
-## Separate data
-
-{config_df.to_markdown()}
-""")
-
-report_path = pathlib.Path(f'figs/{model.name}.md')
-with open(report_path, 'w') as fd:
-    fd.write(f"""
-# {model.name}
-
-## Aggregated data (mean)
-
-{full_df.groupby(level=[0,2]).mean().to_markdown()}
-
-## Separate data
-
-{full_df.to_markdown()}
-""")

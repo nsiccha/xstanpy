@@ -2,12 +2,14 @@ import os
 import time
 import pathlib
 import subprocess
+import logging
 import json
 import hashlib
 import numpy as np
 import numpy.linalg as la
 import pandas as pd
 import arviz as az
+import pickle
 from cached_property import cached_property as cproperty
 from xstanpy import psis
 
@@ -34,6 +36,25 @@ class cached_command:
         value = obj.__dict__[self.func.__name__] = self.get_output(
             self.get_command(obj)
         )
+        return value
+
+class disk_property:
+    def __init__(self, func, getter=None):
+        self.__doc__ = getattr(func, "__doc__")
+        self.func = func
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+        path = pathlib.Path('out') / obj.__class__.__name__ / self.func.__name__ / f'{obj.hash}.p'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            value = obj.__dict__[self.func.__name__] = self.func(obj)
+            # with open(path, 'w') as fd:
+            #     pickle.dump(value, fd)
+        else:
+            with open(path, 'r') as fd:
+                value = obj.__dict__[self.func.__name__] = pickle.load(fd)
         return value
 
 def logit(val): return np.log(val/(1-val))
@@ -64,6 +85,7 @@ class Object:
     information_names = tuple()
     configuration = Configuration('configuration_names')
     information = Configuration('information_names')
+    info = Configuration('info_names')
 
     def post_init(self): pass
 
@@ -135,6 +157,8 @@ class Command(Object):
             print(self.stderr)
         else:
             print("No errors.")
+        if not self.status:
+            raise ValueError(self, self.status)
 
     @cproperty
     def wall_time(self):
@@ -145,6 +169,9 @@ class Command(Object):
 class Model(Object):
     arg_names = ('stan_path', )
     exe_suffix = ''
+    slice_variables = dict()
+    refinement_variable = None
+
 
     def post_init(self):
         if isinstance(self.stan_path, str):
@@ -157,6 +184,8 @@ class Model(Object):
     @cproperty
     def name(self): return self.stan_path.stem
     @cproperty
+    def include_path(self): return self.stan_path.parent
+    @cproperty
     def exe_path(self): return self.stan_path.with_suffix(self.exe_suffix)
     @cproperty
     def exe_info(self):
@@ -168,7 +197,7 @@ class Model(Object):
     @cproperty
     def compilation_process(self):
         return Command(
-            ['make', self.exe_path.resolve()],
+            ['make', self.exe_path.resolve(), f'STANCFLAGS+=--include-paths={self.include_path.resolve()}'],
             cwd=os.environ['CMDSTAN']
         )
 
@@ -182,7 +211,7 @@ class Model(Object):
     @cproperty
     def src_info(self):
         return json.loads(
-            Command([self.stanc_path, '--info', self.stan_path]).stdout
+            Command([self.stanc_path, '--info', self.stan_path, f'--include-paths={self.include_path.resolve()}']).stdout
         )
     @cproperty
     def data_names(self): return tuple(self.src_info['inputs'])
@@ -205,6 +234,7 @@ class Model(Object):
             dshape = (draws.no_draws, diff_no_cols)
             unconstrained = np.hstack([unconstrained, np.random.normal(size=dshape)])
         elif diff_no_cols < 0:
+            print(target, draws.posterior)
             raise NotImplementedError()
         return draws.__class__(
             posterior=target,
@@ -305,13 +335,13 @@ class Posterior(Distribution):
     @cproperty
     def estimated_cost(self):
         rv = 1
-        if hasattr(self.model, 'slice_variables'):
-            rv *= np.prod([
-                self.data[slice_variable]
-                for slice_variable in self.model.slice_variables
-            ])
-        if hasattr(self.model, 'refinement_variable'):
-            rv *= self.data[self.model.refinement_variable]
+        # if hasattr(self.model, 'slice_variables'):
+        rv *= np.prod([
+            self.data[slice_variable]
+            for slice_variable in self.model.slice_variables
+        ])
+        if self.model.refinement_variable is not None:
+            rv *= max(1, self.data[self.model.refinement_variable])
         return 1+rv
 
     @cproperty
@@ -319,6 +349,12 @@ class Posterior(Distribution):
         return {
             key: value for key, value in self.data.items()
             if isinstance(value, int)
+        }
+    @cproperty
+    def config_data(self):
+        return {
+            key: value for key, value in self.data.items()
+            if key in tuple(self.model.slice_variables) + (self.model.refinement_variable, )
         }
 
     @cproperty
@@ -429,7 +465,7 @@ class PosteriorDraws(Object):
         )
 
     def __getattr__(self, key):
-        if key[0] == '_': raise AttributeError(self, key)
+        if key.startswith('_'): raise AttributeError(self, key)
         if hasattr(self.__class__, key): raise AttributeError(self, key)
         try:
             info = self.posterior.column_info.get(key, None)
@@ -722,6 +758,8 @@ class SingleHMC(SingleCommand):
         if self.metric_window:
             remaining = self.warmup_no_draws - self.init_buffer - self.term_buffer
             window = self.metric_window
+            if remaining < window:
+                window = remaining
             assert(remaining >= window)
             while remaining > 0:
                 if 2 * window > remaining: window = remaining
@@ -860,6 +898,7 @@ class Pool(Object):
                     dict(obj=element) for element in self.elements
                     if key not in element.__dict__
                 ])
+                commands.assert_status()
                 assert(commands.status)
             return Pool([
                 getattr(element, key) for element in self.elements
@@ -917,6 +956,12 @@ class CommandPool(Pool):
         rv = all(self.processes.status)
         self.__end = time.perf_counter()
         return rv
+
+    def assert_status(self):
+        if self.status: return
+        for process in self.processes:
+            if not process.status:
+                process.debug()
 
     @cproperty
     def wall_time(self):
@@ -995,6 +1040,8 @@ class DrawsPool(Pool):
         elif diff_no_cols < 0:
             raise NotImplementedError()
         return ParetoSmoothedImportanceSampling(lw)
+    @cproperty
+    def no_total_draws(self): return sum(self.no_draws)
 
 class HMC(Object):
     arg_names = ('posterior', )
@@ -1005,7 +1052,16 @@ class HMC(Object):
     )
     information_names = (
         'hmc_wall_time', 'ess', 'sampling_no_divergences', 'potential_scale_reduction_factor',
-        'avg_sampling_no_leapfrog_steps'
+        'ess_per_kleap', 'estimated_cost',
+        'relative_efficiency', 'pareto_shape_estimate',
+        'pooled_step_size'
+    )
+    info_names = dict(
+        time='hmc_wall_time', ess='ess', ess_per_kleap='ess_per_kleap', div='sampling_no_divergences',
+        rhat='potential_scale_reduction_factor',
+        cost='estimated_cost',
+        psis_re='relative_efficiency', psis_k='pareto_shape_estimate',
+        dt='pooled_step_size', logdet='pooled_metric_logdet'
     )
     command = SingleHMC
     first_idx = 1
@@ -1031,7 +1087,7 @@ class HMC(Object):
     @cproperty
     def raw_commands(self): return CommandPool(self.command, self.configurations)
 
-    @cproperty
+    @disk_property
     def commands(self):
         if not self.raw_commands.status:
             self.raw_commands.process.debug()
@@ -1060,7 +1116,7 @@ class HMC(Object):
         df = self.commands.last_window_hmc_df.df
         df = df[df.divergent__==1]
         proposal = .5 * df.stepsize__.min() if len(df.index) else np.mean(dass)
-        print(len(df.index), [min_,max_,proposal])
+        logging.debug(f'dt: {len(df.index)}, {[min_,max_,proposal]}')
         return np.quantile([min_,max_,proposal], .5)
 
     @cproperty
@@ -1071,6 +1127,10 @@ class HMC(Object):
     def pooled_metric(self):
         if not self.commands[0].metric_window: return self.commands[0].metric
         return self.metric_window_draws.metric
+
+    @cproperty
+    def pooled_metric_logdet(self):
+        return la.slogdet(self.pooled_metric)[1]
 
     def pooled_metric_for(self, target_posterior):
         rv = self.pooled_metric
@@ -1092,8 +1152,11 @@ class HMC(Object):
         if target_posterior is self.posterior:
             return self.draws.constrained[:,-1].tensor
         target_draws = self.draws.draws_for(target_posterior)
+        psis = self.draws.psis(target_draws)
+        logging.debug(f'psis: {psis.relative_efficiency}')
+        self.relative_efficiency = psis.relative_efficiency
         return target_draws.constrained.array[
-            self.draws.psis(target_draws).resample_idxs(self.no_chains)
+            psis.resample_idxs(self.no_chains)
         ]
 
 
@@ -1118,6 +1181,8 @@ class HMC(Object):
 
     @cproperty
     def ess(self): return self.samples.ess
+    @cproperty
+    def ess_per_kleap(self): return 1e3*self.ess / self.sampling_hmc_df.n_leapfrog__.sum()
 
     @cproperty
     def sampling_no_divergences(self): return self.sampling_hmc_df.divergent__.sum()
